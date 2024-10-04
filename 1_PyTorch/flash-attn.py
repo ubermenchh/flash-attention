@@ -1,11 +1,13 @@
+""" Flash Attention Algorithm implemented in PyTorch """
+
 import torch, math 
 import torch.nn.functional as F 
 
 BLOCK_SIZE = 1024 
 NEG_INF = -1e10
 
-N = 1024 
-d = 256 
+N = 1024
+d = 256
 
 def flash_attention(Q, K, V):
     O = torch.zeros_like(Q, requires_grad=True)
@@ -27,18 +29,18 @@ def flash_attention(Q, K, V):
     m_blocks = list(torch.split(m, Br))
 
     for j in range(Tc):
-        Kj, Vj = K_blocks[j], V_blocks[j]
+        Kj, Vj = K_blocks[j].to("cuda"), V_blocks[j].to("cuda")
         for i in range(Tr):
-            Qi = Q_blocks[i]
-            Oi = O_blocks[i]
-            li = l_blocks[i]
-            mi = m_blocks[i]
+            Qi = Q_blocks[i].to("cuda")
+            Oi = O_blocks[i].to("cuda")
+            li = l_blocks[i].to("cuda")
+            mi = m_blocks[i].to("cuda")
 
             Sij = Qi @ Kj.T # (Br, Bc)
 
             mij, _ = torch.max(Sij, dim=-1, keepdim=True)
             Pij = torch.exp(Sij - mij)
-            lij = torch.sum(Sij, dim=-1, keepdim=True)
+            lij = torch.sum(Pij, dim=-1, keepdim=True)
             Pij_Vj = Pij @ Vj 
 
             mi_new = torch.maximum(mij, mi)
@@ -57,10 +59,10 @@ def normal_attention(Q, K, V):
     return attn @ V
 
 if __name__=="__main__":
-    R = torch.randn(N, 3 * d)
+    R = torch.randn(N, 3 * d).to("cuda")
     Q, K, V = torch.split(R, 256, dim=-1) 
 
     flash_O = flash_attention(Q, K, V) 
     normal_O = normal_attention(Q, K, V) 
 
-    print(torch.isclose(flash_O, normal_O).all())
+    print(torch.isclose(flash_O, normal_O))
