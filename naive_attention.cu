@@ -102,7 +102,8 @@ int main() {
     
     dim3 num_threads(TILE_DIM, TILE_DIM);
     dim3 num_blocks((N + num_threads.x - 1) / num_threads.x, (N + num_threads.y  - 1) / num_threads.y);
-
+    
+    clock_t start_time = clock();
     transpose <<< num_blocks, num_threads >>> (K_d, Kt_d, N, D); // K -> Kt
     matmul <<< num_blocks, num_threads >>> (Q_d, Kt_d, S_d, N, N, D); // QKt -> S
     
@@ -114,6 +115,9 @@ int main() {
     
     softmax <<< (N + 255) / 256, 256 >>> (S_d, P_d, N, N); // softmax(S) -> P
     matmul <<< num_blocks, num_threads >>> (P_d, V_d, O_d, N, D, N); // PV -> O
+    clock_t end_time = clock();
+    
+    printf("Time Taken: %fs\n", (float)(end_time - start_time) / CLOCKS_PER_SEC);
     
     cudaMemcpy(O, O_d, sizeof(float) * N * D, cudaMemcpyDeviceToHost);
     
